@@ -3,8 +3,9 @@
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
-const char* ssid     = "sebi";
-const char* password = "9172321736";
+#include <FS.h>   // Include the SPIFFS library
+const char* ssid     = "Patrick";
+const char* password = "Isthestar";
 ESP8266WebServer server(80);
 WiFiClient client;
 MDNSResponder mdns; //multicast Domain Name System
@@ -12,7 +13,8 @@ String p_name="";
 String p_age="";
  
 //float humidity, temp_f;  // Values read from sensor
-String webPage = "";
+//String webPage = "";
+
 
 //int gpio0_pin = 13;
 //int gpio2_pin = 14;
@@ -22,12 +24,14 @@ String webPage = "";
 //const long interval = 2000;              // interval at which to read sensor
  
 
- 
+String getContentType(String filename); // convert the file extension to the MIME type
+bool handleFileRead(String path);       // send the right file to the client (if it exists)
+
 void setup(void)
 {
 //  webPage += "<h1>ESP8266 Web Server</h1><p>Socket #1 <a href=\"socket1On\"><button>ON</button></a>&nbsp;<a href=\"socket1Off\"><button>OFF</button></a></p>";
 //  webPage += "<p>Socket #2 <a href=\"socket2On\"><button>ON</button></a>&nbsp;<a href=\"socket2Off\"><button>OFF</button></a></p>";
-  webPage+="<h1>Hello now connected to web server.<h1>";
+//  webPage+="<h1>Hello now connected to web server.<h1>";
 // preparing GPIOs
 //  pinMode(gpio0_pin, OUTPUT);
 //  digitalWrite(gpio0_pin, LOW);
@@ -58,9 +62,10 @@ WiFi.mode(WIFI_STA);
   if (mdns.begin("esp8266", WiFi.localIP())) {
     Serial.println("MDNS responder started");
   }
- server.on("/", [](){
-    server.send(200, "text/html", webPage);
-  });
+ SPIFFS.begin();                           // Start the SPI Flash Files System
+// server.on("/", [](){
+//    server.send(200, "text/html", webPage);
+//  });
 //  server.on("/socket1On", [](){
 //    server.send(200, "text/html", webPage);
 //    digitalWrite(gpio0_pin, HIGH);
@@ -93,14 +98,20 @@ void loop(void)
   // Wait a few seconds between measurements.
   delay(100);
   Serial.println("Enter name:-");
-  if(Serial.available()>0)
-  p_name=Serial.read();
+  while(Serial.available()==0) yield();
+  if(Serial.available()>0){
+  p_name=Serial.readString();
+  Serial.print(p_name);
+  }
   Serial.println("Enter age:-");
-  if(Serial.available()>0)
+  while(Serial.available()==0) yield();
+  if(Serial.available()>0){
   p_age=Serial.read();
-    server.handleClient();
+  Serial.print(p_age);
+  }
+  server.handleClient();
 //    if ( f <3 ){Serial.println("\nStarting connection to server..."); }
-  if (client.connect("192.168.0.105", 80)) {
+  if (client.connect("192.168.43.82", 80)) {
 if (p_name!="" and p_age!="") {
 //   if ( f <3 ){Serial.println("connected to server");}
     
@@ -125,6 +136,27 @@ if (p_name!="" and p_age!="") {
     p_age="";
   //delay(10000); 
 } 
+String getContentType(String filename) { // convert the file extension to the MIME type
+  if (filename.endsWith(".html")) return "text/html";
+  else if (filename.endsWith(".css")) return "text/css";
+  else if (filename.endsWith(".js")) return "application/javascript";
+  else if (filename.endsWith(".ico")) return "image/x-icon";
+  else if (filename.endsWith(".php")) return "application/php";
+  return "text/plain";
+}
 
+bool handleFileRead(String path) { // send the right file to the client (if it exists)
+  Serial.println("handleFileRead: " + path);
+  if (path.endsWith("/")) path += "write_data.php";         // If a folder is requested, send the index file
+  String contentType = getContentType(path);            // Get the MIME type
+  if (SPIFFS.exists(path)) {                            // If the file exists
+    File file = SPIFFS.open(path, "r");                 // Open it
+    size_t sent = server.streamFile(file, contentType); // And send it to the client
+    file.close();                                       // Then close the file again
+    return true;
+  }
+  Serial.println("\tFile Not Found");
+  return false;                                         // If the file doesn't exist, return false
+}
 
 
