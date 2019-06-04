@@ -1,4 +1,4 @@
-#include <SoftwareSerial.h>
+
 #include "FPS_GT511C3.h"
 #include "SoftwareSerial.h"
 #include <Wire.h>
